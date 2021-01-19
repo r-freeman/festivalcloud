@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+  </head>
+  <body>
+    <div id="festivals">
+    </div>
+    <br>
+    <br>
+    <div id="stages">
+    </div>
+    <br>
+    <br>
+    <div id="performers">
+    </div>
+    <br>
+    <br>
+    <div id="shows">
+    </div>
+  </body>
+  <script src="faker.js" type="text/javascript"></script>
+  <script>
+  
+  ////FESTIVALS////
+  let festivalsCount = 20;
+  let festivals = 'INSERT INTO festivals (title, description, city, start_date, end_date, image_path) <br> VALUES <br>';
+  let end = ', <br>';
+  
+  for (var i = 0; i < festivalsCount; i++) {
+    if (i === festivalsCount-1) end = ';';
+    let start_date = faker.date.soon().toISOString().slice(0, 19).replace('T', ' ');
+    let end_date = faker.date.future().toISOString().slice(0, 19).replace('T', ' ');
+    
+    let city = faker.address.city().replace("'"," ");
+    
+    festivals += "('"+faker.random.word()+" festival', '"+faker.lorem.sentence()+"', '"+city+"', '"+start_date+"', '"+end_date+"', '"+faker.image.image()+"')" + end;
+  }
+  
+    document.getElementById("festivals").innerHTML = festivals;
+  //////////////////////
+  
+  ////////STAGES//////////
+    let stages = 'INSERT INTO stages (title, description, location, festival_id, image_path) <br> VALUES <br>';
+    let stagesCount = 120;
+    end = ', <br>';
+    
+    for (var i = 0; i < stagesCount; i++) {
+      if (i === stagesCount-1) end = ';';
+      let festival_id = Math.floor(Math.random() * festivalsCount) + 1;
+      stages += "('"+faker.random.word()+" stage', '"+faker.lorem.sentence()+"', 'Section "+faker.random.alpha()+"', "+festival_id+", '"+faker.image.image()+"')" + end;
+    }
+    
+    document.getElementById("stages").innerHTML = stages;
+    //////////////////////
+    
+    ////////PERFORMERS//////////
+      let performers = 'INSERT INTO performers (title, description, contact_email, contact_phone, image_path) <br> VALUES <br>';
+      let performersCount = 50;
+      end = ', <br>';
+      
+      for (var i = 0; i < performersCount; i++) {
+        if (i === performersCount-1) end = ';';
+        let title = faker.name.findName().replace("'"," ");
+        performers += "('"+title+"', '"+faker.lorem.sentence()+"', '"+faker.internet.email()+"', '"+faker.phone.phoneNumberFormat()+"', '"+faker.image.image()+"')" + end;
+      }
+      
+      document.getElementById("performers").innerHTML = performers;
+      //////////////////////
+      
+      ////////SHOWS//////////
+        let shows = 'INSERT INTO shows (start_time, end_time, stage_id, performer_id) <br> VALUES <br>';
+        end = ', <br>';
+        let showsCount = 100;
+        
+        for (var i = 0; i < showsCount; i++) {
+          if (i === showsCount-1) end = ';';
+          let start_time = faker.date.soon().toISOString().slice(0, 19).replace('T', ' ');
+          let end_time = faker.date.future().toISOString().slice(0, 19).replace('T', ' ');
+          let stage_id = Math.floor(Math.random() * stagesCount) + 1;
+          let performer_id = Math.floor(Math.random() * performersCount) + 1;
+          
+          shows += "('"+start_time+"', '"+end_time+"', "+stage_id+", "+performer_id+")" + end;
+        }
+        
+        document.getElementById("shows").innerHTML = shows;
+        //////////////////////
+  </script>
+</html>
