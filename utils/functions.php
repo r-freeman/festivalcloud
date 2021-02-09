@@ -1,95 +1,106 @@
 <?php
-function is_logged_in() {
+require $_SERVER['DOCUMENT_ROOT'] . '/vendor/autoload.php';
+
+if (isset($_SERVER['ENVIRONMENT']) && $_SERVER['ENVIRONMENT'] === 'production') {
+    // read aws credentials from environment variables
+    $s3_config = array(
+        'key' => $_SERVER['AWS_ACCESS_KEY_ID'],
+        'secret' => $_SERVER['AWS_SECRET_KEY'],
+        'region' => 'us-east-1',
+        'version' => '2006-03-01',
+    );
+} else {
+    // read aws credentials from ~/.aws/credentials
+    $s3_config = array(
+        'profile' => 'default',
+        'region' => 'us-east-1',
+        'version' => '2006-03-01',
+    );
+}
+
+define('S3_BUCKET', 'elasticbeanstalk-us-east-1-596313505871');
+
+use Aws\S3\S3Client;
+use Aws\S3\Exception\S3Exception;
+
+function is_logged_in()
+{
     start_session();
     return (isset($_SESSION['user']));
 }
 
-function start_session() {
+function start_session()
+{
     $id = session_id();
     if ($id === "") {
         session_start();
     }
 }
 
-function old($index, $default = null) {
-    if (isset($_POST) && is_array($_POST) && array_key_exists ($index, $_POST)) {
+function old($index, $default = null)
+{
+    if (isset($_POST) && is_array($_POST) && array_key_exists($index, $_POST)) {
         echo $_POST[$index];
-    }
-    else if ($default !== null) {
+    } else if ($default !== null) {
         echo $default;
     }
 }
 
-function error($index) {
+function error($index)
+{
     global $errors;
 
-    if (isset($errors) && is_array($errors) && array_key_exists ($index, $errors)) {
+    if (isset($errors) && is_array($errors) && array_key_exists($index, $errors)) {
         echo $errors[$index];
     }
 }
 
-function dd($value) {
+function dd($value)
+{
     echo '<pre>';
     print_r($value);
     echo '</pre>';
     exit();
 }
 
-function imageFileUpload($name, $required, $maxSize, $allowedTypes, $fileName) {
-    if ($_SERVER['REQUEST_METHOD'] !== "POST") {
-        throw new Exception('Invalid request');
+function imageFileUpload($name, $required, $maxSize, $allowedTypes, $fileName)
+{
+    global $s3_config;
+    $objectUrl = 'uploads/default.png';
+
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES[$name]) && $_FILES[$name]['error'] == UPLOAD_ERR_OK && is_uploaded_file($_FILES[$name]['tmp_name'])) {
+        $imageFileType = pathinfo($_FILES[$name]['name'], PATHINFO_EXTENSION);
+
+        // validate that the file extension belongs to one of the allowed types
+        if (in_array($imageFileType, $allowedTypes)) {
+            // check file is an image
+            $imageInfo = getimagesize($_FILES[$name]['tmp_name']);
+            if ($imageInfo === false) {
+                throw new Exception("File is not an image.");
+            }
+            // file is an image with valid extension, append it to the file name
+            $fileName = $fileName . '.' . $imageFileType;
+        } else {
+            throw new Exception("Sorry, only " . implode(',', $allowedTypes) . " files are allowed.");
+        }
+
+        // check that the file does not exceed the max size
+        if ($_FILES[$name]["size"] > $maxSize) {
+            throw new Exception("Sorry, your file is too large.");
+        }
+
+        try {
+            // initialise the s3 client
+            $s3 = new S3Client($s3_config);
+
+            // upload to s3 and get the object url
+            $upload = $s3->upload(S3_BUCKET, $fileName, fopen($_FILES[$name]['tmp_name'], 'rb'), 'public-read');
+            $objectUrl = htmlspecialchars($upload->get('ObjectURL'));
+        } catch (Exception $e) {
+            echo $e->getMessage() . "\n";
+        }
     }
 
-    if ($required && !isset($_FILES[$name])) {
-        throw new Exception("File " . $name . " required");
-    }
-    else if (!$required && !isset($_FILES[$name])) {
-        return null;
-    }
-
-    if ($_FILES[$name]['error'] !== 0) {
-        // throw new Exception('File upload error');
-        return "uploads/default.png";
-    }
-
-    if (!is_uploaded_file($_FILES[$name]["tmp_name"])) {
-        throw new Exception("Filename is not an uploaded file");
-    }
-
-    $imageInfo = getimagesize($_FILES[$name]["tmp_name"]);
-    if ($imageInfo === false) {
-        throw new Exception("File is not an image.");
-    }
-
-    $width = $imageInfo[0];
-    $height = $imageInfo[1];
-    $sizeString = $imageInfo[3];
-    $mime = $imageInfo['mime'];
-
-    $target_dir = "../../uploads/";
-    $target_file = $target_dir . basename($_FILES[$name]["name"]);
-    $imageFileType = pathinfo($target_file, PATHINFO_EXTENSION);
-    $target_file = $target_dir . "/" . $fileName . "." . $imageFileType;
-
-    if (!file_exists($target_dir)) {
-        mkdir($target_dir, 755, true);
-    }
-    if (file_exists($target_file)) {
-        throw new Exception("Sorry, file already exists.");
-    }
-
-    if ($_FILES[$name]["size"] > $maxSize) {
-        throw new Exception("Sorry, your file is too large.");
-    }
-
-    if (!in_array($imageFileType, $allowedTypes)) {
-        throw new Exception("Sorry, only " . implode(',', $allowedTypes) . " files are allowed.");
-    }
-
-    if (!move_uploaded_file($_FILES[$name]["tmp_name"], $target_file)) {
-        throw new Exception("Sorry, there was an error moving your uploaded file.");
-    }
-
-    return "uploads/" . $fileName . "." . $imageFileType;
+    // return the object url to store in db
+    return $objectUrl;
 }
-?>
